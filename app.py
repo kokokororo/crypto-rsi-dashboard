@@ -165,8 +165,19 @@ def monitor_markets():
                 
         time.sleep(MONITOR_INTERVAL)
 
-# 백그라운드 모니터링 스레드 캐싱 및 실행 (Streamlit 1.12.0 호환)
-@st.experimental_singleton
+# Streamlit 버전 호환 캐싱 데코레이터 선택
+if hasattr(st, "cache_resource"):
+    # 최신 Streamlit 버전 (Streamlit Cloud 등)
+    cache_decorator = st.cache_resource
+elif hasattr(st, "experimental_singleton"):
+    # 구형 Streamlit 버전 (로컬 32비트 환경 등)
+    cache_decorator = st.experimental_singleton
+else:
+    # 폴백
+    cache_decorator = lambda f: f
+
+# 백그라운드 모니터링 스레드 캐싱 및 실행
+@cache_decorator
 def start_monitor_thread():
     database.initialize_db()
     thread = threading.Thread(target=monitor_markets, daemon=True)
