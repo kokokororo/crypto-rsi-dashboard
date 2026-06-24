@@ -8,25 +8,33 @@
 const SUPABASE_URL = "https://your-project-id.supabase.co"
 const SUPABASE_KEY = "your-anon-key-here"
 
-// API 통신 헤더 정의
+// API 통신 헤더 정의 (캐시 방지 헤더 추가)
 const headers = {
   "apikey": SUPABASE_KEY,
   "Authorization": "Bearer " + SUPABASE_KEY,
-  "Content-Type": "application/json"
+  "Content-Type": "application/json",
+  "Cache-Control": "no-cache, no-store, must-revalidate",
+  "Pragma": "no-cache",
+  "Expires": "0"
 }
 
 // Supabase DB 비동기 데이터 패치 함수
 async function fetchData() {
   try {
+    // iOS 시스템(WebKit)의 강제 캐시를 무력화하기 위해 요청 헤더에 고유한 타임스탬프 값을 매번 동적으로 주입합니다.
+    // Supabase API는 모르는 헤더(X-Cache-Buster)가 들어오면 에러를 내지 않고 무시합니다.
+    let reqHeaders = Object.assign({}, headers)
+    reqHeaders["X-Cache-Buster"] = "" + Date.now()
+    
     // 1. 실시간 가격 및 RSI 정보 조회
     let statusReq = new Request(`${SUPABASE_URL}/rest/v1/current_status?select=*`)
-    statusReq.headers = headers
+    statusReq.headers = reqHeaders
     statusReq.method = "GET"
     let statusData = await statusReq.loadJSON()
     
     // 2. 가장 최근에 생성된 매매 신호 로그 1건 조회
     let signalReq = new Request(`${SUPABASE_URL}/rest/v1/signal_logs?select=*&order=created_at.desc&limit=1`)
-    signalReq.headers = headers
+    signalReq.headers = reqHeaders
     signalReq.method = "GET"
     let signalData = await signalReq.loadJSON()
     
