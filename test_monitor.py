@@ -18,21 +18,22 @@ def main():
     database.initialize_db()
     print("Database initialized.")
     
-    # Bybit 데이터 수집 및 RSI 계산 테스트
+    # 코인베이스 데이터 수집 및 RSI 계산 테스트
     symbols = {
-        "BTC/USDT": "BTCUSDT",
-        "ETH/USDT": "ETHUSDT"
+        "BTC/USDT": "BTC/USDT",
+        "ETH/USDT": "ETH/USDT"
     }
     
     for display_symbol, fetch_symbol in symbols.items():
         try:
             print(f"Fetching data for {display_symbol}...")
-            ohlcv = app.fetch_binance_ohlcv(fetch_symbol, limit=50)
+            import monitor
+            ohlcv = monitor.fetch_kucoin_ohlcv(fetch_symbol, limit=50)
             print(f"Fetched {len(ohlcv)} candles.")
             
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df['rsi'] = app.calculate_rsi(df['close'], period=20)
+            df['rsi'] = monitor.calculate_rsi(df['close'], period=20)
             
             # 실시간 수치 확인
             latest_row = df.iloc[-1]
@@ -72,7 +73,7 @@ def main():
         
     # 텔레그램 함수 호출 테스트
     print("\n--- Telegram Send Function Test ---")
-    app.send_telegram_message("🔔 [Test] Crypto RSI Dashboard backend verification message.")
+    monitor.send_telegram_message("🔔 [Test] Crypto RSI Dashboard backend verification message.")
     
     print("\n=== Test Completed ===")
 

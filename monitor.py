@@ -16,29 +16,45 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 MONITOR_INTERVAL = int(os.getenv("MONITOR_INTERVAL_SEC", "300"))  # 기본 5분(300초)
 
-def fetch_binance_ohlcv(symbol: str, limit: int = 50) -> list:
-    """Binance API v3를 호출하여 4시간봉 데이터를 받아옵니다."""
-    formatted_symbol = symbol.replace("/", "")
-    url = "https://api.binance.com/api/v3/klines"
+def fetch_kucoin_ohlcv(symbol: str, limit: int = 50) -> list:
+    """KuCoin API를 호출하여 4시간봉 데이터를 받아옵니다.
+    반환 형식: [[timestamp_ms, open, high, low, close, volume], ...] (과거 -> 최신 순)
+    """
+    # symbol 예: "BTC/USDT" -> "BTC-USDT"
+    formatted_symbol = symbol.replace("/", "-")
+    url = "https://api.kucoin.com/api/v1/market/candles"
     params = {
         "symbol": formatted_symbol,
-        "interval": "4h",
-        "limit": limit
+        "type": "4hour"  # 4시간봉
     }
-    # 연결 타임아웃 5초, 읽기 타임아웃 15초로 설정하여 행(Hang) 현상을 원천 방지합니다.
+    
     response = requests.get(url, params=params, timeout=(5, 15))
     response.raise_for_status()
     data = response.json()
     
+    if data.get("code") != "200000":
+        raise Exception(f"KuCoin API Error: {data.get('msg')}")
+        
+    raw_list = data["data"]
+    
+    # KuCoin API는 최신 데이터가 index 0에 위치하므로
+    # 시간 순서대로 정렬하기 위해 리스트를 역순(과거->최신)으로 뒤집습니다.
+    raw_list.reverse()
+    
+    # 최대 limit 개수만큼만 슬라이싱
+    raw_list = raw_list[-limit:]
+    
     formatted = []
-    for item in data:
+    for item in raw_list:
+        # item: [time_seconds, open, close, high, low, volume, turnover]
+        # (주의: high가 index 3, low가 index 4, close가 index 2 입니다)
         formatted.append([
-            int(item[0]),          # timestamp (ms)
-            float(item[1]),        # open
-            float(item[2]),        # high
-            float(item[3]),        # low
-            float(item[4]),        # close
-            float(item[5])         # volume
+            int(float(item[0]) * 1000),  # timestamp (초 -> ms 변환)
+            float(item[1]),              # open
+            float(item[3]),              # high
+            float(item[4]),              # low
+            float(item[2]),              # close
+            float(item[5])               # volume
         ])
     return formatted
 
@@ -94,8 +110,8 @@ def monitor_markets():
         
         for display_symbol, fetch_symbol in symbols.items():
             try:
-                # 바이낸스 시세 호출
-                ohlcv = fetch_binance_ohlcv(fetch_symbol, limit=50)
+                # 쿠코인 시세 호출 (미국 및 글로벌 IP 차단 해결)
+                ohlcv = fetch_kucoin_ohlcv(fetch_symbol, limit=50)
                 if not ohlcv:
                     continue
                 
