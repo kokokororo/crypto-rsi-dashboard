@@ -19,35 +19,27 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "your_bot_token_here")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "your_chat_id_here")
 MONITOR_INTERVAL = int(os.getenv("MONITOR_INTERVAL_SEC", "300"))  # 기본 5분(300초)
 
-def fetch_bybit_ohlcv(symbol: str, limit: int = 50) -> list:
-    """Bybit API v5를 직접 호출하여 4시간봉 데이터를 받아옵니다.
+def fetch_binance_ohlcv(symbol: str, limit: int = 50) -> list:
+    """Binance API v3를 호출하여 4시간봉 데이터를 받아옵니다.
     반환 형식: [[timestamp_ms, open, high, low, close, volume], ...] (과거 -> 최신 순)
     """
-    url = "https://api.bybit.com/v5/market/kline"
+    # symbol 예: "BTC/USDT" -> "BTCUSDT"
+    formatted_symbol = symbol.replace("/", "")
+    url = "https://api.binance.com/api/v3/klines"
     params = {
-        "category": "linear",
-        "symbol": symbol,
-        "interval": "240",  # 4시간봉 (240분)
+        "symbol": formatted_symbol,
+        "interval": "4h",  # 4시간봉 (4 hours)
         "limit": limit
     }
     
-    # 한국 IP 환경 등에서 Bybit API 응답 지연이 있을 수 있으므로 타임아웃 15초 설정
     response = requests.get(url, params=params, timeout=15)
     response.raise_for_status()
     data = response.json()
     
-    if data.get("retCode") != 0:
-        raise Exception(f"Bybit API Error ({data.get('retCode')}): {data.get('retMsg')}")
-        
-    raw_list = data["result"]["list"]
-    
-    # Bybit API v5 kline list는 최신 데이터가 index 0에 위치하므로
-    # 시간 순서대로 정렬하기 위해 리스트를 역순(과거->최신)으로 뒤집습니다.
-    raw_list.reverse()
-    
+    # Binance API는 시간 정방향(과거 -> 최신)으로 배열을 주므로 reverse가 필요 없습니다.
     formatted = []
-    for item in raw_list:
-        # item: [startTime, openPrice, highPrice, lowPrice, closePrice, volume, turnover]
+    for item in data:
+        # item: [open_time, open, high, low, close, volume, close_time, ...]
         formatted.append([
             int(item[0]),          # timestamp (ms)
             float(item[1]),        # open
@@ -98,19 +90,19 @@ def send_telegram_message(message: str):
 
 def monitor_markets():
     """백그라운드에서 동작하며 주기적으로 데이터를 수집하고 RSI 지표를 분석합니다."""
-    # API 요청을 위한 Bybit 심볼 매핑
+    # API 요청을 위한 심볼 매핑
     symbols = {
-        "BTC/USDT": "BTCUSDT",
-        "ETH/USDT": "ETHUSDT"
+        "BTC/USDT": "BTC/USDT",
+        "ETH/USDT": "ETH/USDT"
     }
     
-    print("[Background Monitor] Thread started (Using Bybit API v5).", flush=True)
+    print("[Background Monitor] Thread started (Using Binance API v3).", flush=True)
     
     while True:
         for display_symbol, fetch_symbol in symbols.items():
             try:
-                # Bybit API v5 직접 호출
-                ohlcv = fetch_bybit_ohlcv(fetch_symbol, limit=50)
+                # Binance API v3 직접 호출
+                ohlcv = fetch_binance_ohlcv(fetch_symbol, limit=50)
                 if not ohlcv:
                     continue
                 

@@ -27,7 +27,7 @@ def main():
     for display_symbol, fetch_symbol in symbols.items():
         try:
             print(f"Fetching data for {display_symbol}...")
-            ohlcv = app.fetch_bybit_ohlcv(fetch_symbol, limit=50)
+            ohlcv = app.fetch_binance_ohlcv(fetch_symbol, limit=50)
             print(f"Fetched {len(ohlcv)} candles.")
             
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
