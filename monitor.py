@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import requests
 from dotenv import load_dotenv
@@ -16,11 +16,11 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 MONITOR_INTERVAL = int(os.getenv("MONITOR_INTERVAL_SEC", "300"))  # 기본 5분(300초)
 
+# KST 시간대 정의 (UTC+9)
+KST = timezone(timedelta(hours=9))
+
 def fetch_kucoin_ohlcv(symbol: str, limit: int = 50) -> list:
-    """KuCoin API를 호출하여 4시간봉 데이터를 받아옵니다.
-    반환 형식: [[timestamp_ms, open, high, low, close, volume], ...] (과거 -> 최신 순)
-    """
-    # symbol 예: "BTC/USDT" -> "BTC-USDT"
+    """KuCoin API를 호출하여 4시간봉 데이터를 받아옵니다."""
     formatted_symbol = symbol.replace("/", "-")
     url = "https://api.kucoin.com/api/v1/market/candles"
     params = {
@@ -37,19 +37,14 @@ def fetch_kucoin_ohlcv(symbol: str, limit: int = 50) -> list:
         
     raw_list = data["data"]
     
-    # KuCoin API는 최신 데이터가 index 0에 위치하므로
-    # 시간 순서대로 정렬하기 위해 리스트를 역순(과거->최신)으로 뒤집습니다.
+    # 시간 순서대로 정렬하기 위해 리스트를 역순으로 뒤집음
     raw_list.reverse()
-    
-    # 최대 limit 개수만큼만 슬라이싱
     raw_list = raw_list[-limit:]
     
     formatted = []
     for item in raw_list:
-        # item: [time_seconds, open, close, high, low, volume, turnover]
-        # (주의: high가 index 3, low가 index 4, close가 index 2 입니다)
         formatted.append([
-            int(float(item[0]) * 1000),  # timestamp (초 -> ms 변환)
+            int(float(item[0]) * 1000),  # timestamp (ms)
             float(item[1]),              # open
             float(item[3]),              # high
             float(item[4]),              # low
@@ -105,36 +100,41 @@ def monitor_markets():
     print("[Background Monitor] Engine started. Monitoring markets...", flush=True)
     
     while True:
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # 한국 표준시(KST)로 수집 라운드 개시 로그 출력
+        current_time = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
         print(f"\n[{current_time}] Starting data collection round...", flush=True)
         
         for display_symbol, fetch_symbol in symbols.items():
             try:
-                # 쿠코인 시세 호출 (미국 및 글로벌 IP 차단 해결)
                 ohlcv = fetch_kucoin_ohlcv(fetch_symbol, limit=50)
                 if not ohlcv:
                     continue
                 
                 df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-                df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
+                # 로컬 환경 KST 표시를 위해 타임스탬프를 datetime 객체로 변환할 때 
+                # 한국 시간대(KST = UTC+9) 정보를 주입합니다.
+                df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms') + timedelta(hours=9)
                 df['rsi'] = calculate_rsi(df['close'], period=20)
                 
-                # 1. 실시간 데이터용 (마지막 미완성 캔들)
+                # 1. 실시간 데이터용
                 latest_row = df.iloc[-1]
                 latest_price = float(latest_row['close'])
                 latest_rsi = float(latest_row['rsi'])
                 
-                # Supabase 실시간 가격/RSI 갱신
+                # Supabase 업로드 (KST 시간대를 강제 주입해 갱신 시각 포맷팅)
+                # supabase_db.py의 update_current_status 내부에서 datetime.now()를 사용하므로
+                # 해당 코드도 UTC를 가져오게 되어 있습니다. 일관성을 위해 
+                # database 모듈을 거치는 시각 데이터도 수동 제어가 되거나 
+                # supabase_db.py 내부도 KST 기준 시간대를 타도록 맞춰야 합니다.
                 database.update_current_status(display_symbol, latest_price, latest_rsi)
                 print(f"[{display_symbol}] Live Price: ${latest_price:,.2f}, Live RSI(20): {latest_rsi:.2f}", flush=True)
                 
-                # 2. 신호 판별 (이전 마감 완성 캔들)
+                # 2. 신호 판별 (마감 완성 캔들)
                 closed_row = df.iloc[-2]
                 closed_time_str = closed_row['datetime'].strftime("%Y-%m-%d %H:%M:%S")
                 closed_price = float(closed_row['close'])
                 closed_rsi = float(closed_row['rsi'])
                 
-                # 중복 알림 방지 체크 후 신호 전송
                 if not database.is_alert_already_sent(display_symbol, closed_time_str):
                     action = None
                     if closed_rsi <= 25:

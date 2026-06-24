@@ -27,7 +27,9 @@ def update_current_status(symbol: str, price: float, rsi: float):
         return
         
     url = f"{SUPABASE_URL}/rest/v1/current_status"
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    from datetime import timezone, timedelta
+    KST = timezone(timedelta(hours=9))
+    now_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
     
     payload = {
         "symbol": symbol,
@@ -107,7 +109,9 @@ def add_signal_log(symbol: str, timestamp: str, price: float, rsi: float, action
         return
         
     url = f"{SUPABASE_URL}/rest/v1/signal_logs"
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    from datetime import timezone, timedelta
+    KST = timezone(timedelta(hours=9))
+    now_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
     
     payload = {
         "symbol": symbol,
