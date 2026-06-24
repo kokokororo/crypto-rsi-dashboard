@@ -75,10 +75,10 @@ def calculate_rsi(prices: pd.Series, period: int = 20) -> pd.Series:
 def send_telegram_message(message: str):
     """텔레그램 알림을 발송합니다. 설정이 유효하지 않으면 콘솔에 로그만 남깁니다."""
     if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "your_bot_token_here":
-        print(f"[Telegram Skip] Token not set. Message: {message}")
+        print(f"[Telegram Skip] Token not set. Message: {message}", flush=True)
         return
     if not TELEGRAM_CHAT_ID or TELEGRAM_CHAT_ID == "your_chat_id_here":
-        print(f"[Telegram Skip] Chat ID not set. Message: {message}")
+        print(f"[Telegram Skip] Chat ID not set. Message: {message}", flush=True)
         return
         
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -90,11 +90,11 @@ def send_telegram_message(message: str):
     try:
         response = requests.post(url, json=payload, timeout=10)
         if response.status_code == 200:
-            print("[Telegram Success] Alert sent successfully.")
+            print("[Telegram Success] Alert sent successfully.", flush=True)
         else:
-            print(f"[Telegram Error] Status code {response.status_code}: {response.text}")
+            print(f"[Telegram Error] Status code {response.status_code}: {response.text}", flush=True)
     except Exception as e:
-        print(f"[Telegram Exception] Failed to send telegram message: {e}")
+        print(f"[Telegram Exception] Failed to send telegram message: {e}", flush=True)
 
 def monitor_markets():
     """백그라운드에서 동작하며 주기적으로 데이터를 수집하고 RSI 지표를 분석합니다."""
@@ -104,7 +104,7 @@ def monitor_markets():
         "ETH/USDT": "ETHUSDT"
     }
     
-    print("[Background Monitor] Thread started (Using Bybit API v5).")
+    print("[Background Monitor] Thread started (Using Bybit API v5).", flush=True)
     
     while True:
         for display_symbol, fetch_symbol in symbols.items():
@@ -158,31 +158,19 @@ def monitor_markets():
                         # DB에 기록
                         database.add_signal_log(display_symbol, closed_time_str, closed_price, closed_rsi, action)
                         database.record_sent_alert(display_symbol, closed_time_str)
-                        print(f"[Signal Detected] {display_symbol} {action} at {closed_time_str} (Price: {closed_price}, RSI: {closed_rsi:.2f})")
+                        print(f"[Signal Detected] {display_symbol} {action} at {closed_time_str} (Price: {closed_price}, RSI: {closed_rsi:.2f})", flush=True)
                         
             except Exception as e:
-                print(f"[Error Monitoring {display_symbol}]: {e}")
+                print(f"[Error Monitoring {display_symbol}]: {e}", flush=True)
                 
         time.sleep(MONITOR_INTERVAL)
 
-# Streamlit 버전 호환 캐싱 데코레이터 선택
-if hasattr(st, "cache_resource"):
-    # 최신 Streamlit 버전 (Streamlit Cloud 등)
-    cache_decorator = st.cache_resource
-elif hasattr(st, "experimental_singleton"):
-    # 구형 Streamlit 버전 (로컬 32비트 환경 등)
-    cache_decorator = st.experimental_singleton
-else:
-    # 폴백
-    cache_decorator = lambda f: f
-
-# 백그라운드 모니터링 스레드 캐싱 및 실행
-@cache_decorator
-def start_monitor_thread():
+# 프로세스 전역에서 단 한 번만 백그라운드 수집 스레드 실행 보장 (Streamlit 캐시 우회)
+if not hasattr(sys, "_monitor_thread_instance"):
     database.initialize_db()
-    thread = threading.Thread(target=monitor_markets, daemon=True)
-    thread.start()
-    return thread
+    sys._monitor_thread_instance = threading.Thread(target=monitor_markets, daemon=True)
+    sys._monitor_thread_instance.start()
+    print("[Background Monitor] System-wide thread initialized and started successfully.", flush=True)
 
 def render_signal_logs_as_html(logs) -> str:
     """RSI 매매 신호 이력을 모던한 스타일의 HTML 테이블로 포맷팅합니다.
@@ -255,9 +243,6 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
-    
-    # 백그라운드 엔진 기동
-    start_monitor_thread()
     
     # 제목 및 리프레시 영역
     st.title("📈 Crypto RSI 실시간 트레이딩 대시보드")
