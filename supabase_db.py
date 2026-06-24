@@ -20,7 +20,7 @@ def get_headers(prefer_upsert=False):
         headers["Prefer"] = "resolution=merge-duplicates, return=minimal"
     return headers
 
-def update_current_status(symbol: str, price: float, rsi: float):
+def update_current_status(symbol: str, price: float, rsi: float, rainbow_band: str = None, rainbow_color: str = None):
     """실시간 가격 및 RSI 수치를 Supabase 클라우드 DB에 UPSERT 합니다."""
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("[Supabase Warning] URL or KEY not set. Skipping update_current_status.")
@@ -35,7 +35,9 @@ def update_current_status(symbol: str, price: float, rsi: float):
         "symbol": symbol,
         "price": price,
         "rsi": rsi,
-        "last_updated": now_str
+        "last_updated": now_str,
+        "rainbow_band": rainbow_band,
+        "rainbow_color": rainbow_color
     }
     
     try:

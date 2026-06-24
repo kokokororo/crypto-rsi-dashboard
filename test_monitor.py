@@ -42,7 +42,12 @@ def main():
             print(f"[{display_symbol}] Price: {latest_price:,.2f}, RSI(20): {latest_rsi:.2f}")
             
             # DB 업데이트 테스트
-            database.update_current_status(display_symbol, latest_price, latest_rsi)
+            rainbow_band = None
+            rainbow_color = None
+            if display_symbol == "BTC/USDT":
+                rainbow_band, rainbow_color = monitor.fetch_bitcoin_rainbow_chart()
+                print(f"[{display_symbol}] Rainbow: {rainbow_band} ({rainbow_color})")
+            database.update_current_status(display_symbol, latest_price, latest_rsi, rainbow_band, rainbow_color)
             
             # 가짜 신호 하나 추가해서 로그 테스트
             # 캔들 시각 기준 (RSI가 25 이하인 가짜 신호 생성)

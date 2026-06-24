@@ -3,7 +3,9 @@ CREATE TABLE IF NOT EXISTS public.current_status (
     symbol TEXT PRIMARY KEY,
     price DOUBLE PRECISION,
     rsi DOUBLE PRECISION,
-    last_updated TEXT
+    last_updated TEXT,
+    rainbow_band TEXT,
+    rainbow_color TEXT
 );
 
 -- 2. 매매 신호 로그 테이블 생성

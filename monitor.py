@@ -66,6 +66,25 @@ def calculate_rsi(prices: pd.Series, period: int = 20) -> pd.Series:
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
+def fetch_bitcoin_rainbow_chart() -> tuple:
+    """Bitcoin.com API를 통해 비트코인 레인보우 차트의 현재 상태(band, color)를 가져옵니다.
+    실패 시 (None, None)을 반환합니다.
+    """
+    url = "https://charts.bitcoin.com/api/v1/charts/rainbow"
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            current_zone = data.get("data", {}).get("currentZone", {})
+            name = current_zone.get("name")
+            color = current_zone.get("color")
+            return name, color
+        else:
+            print(f"[Rainbow API Warning] Failed to fetch. Status code: {response.status_code}", flush=True)
+    except Exception as e:
+        print(f"[Rainbow API Exception] Error fetching rainbow chart: {e}", flush=True)
+    return None, None
+
 def send_telegram_message(message: str):
     """텔레그램 알림을 발송합니다."""
     if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "your_bot_token_here":
@@ -121,12 +140,18 @@ def monitor_markets():
                 latest_price = float(latest_row['close'])
                 latest_rsi = float(latest_row['rsi'])
                 
+                rainbow_band = None
+                rainbow_color = None
+                if display_symbol == "BTC/USDT":
+                    rainbow_band, rainbow_color = fetch_bitcoin_rainbow_chart()
+                    print(f"[BTC Rainbow] Status: {rainbow_band}, Color: {rainbow_color}", flush=True)
+                
                 # Supabase 업로드 (KST 시간대를 강제 주입해 갱신 시각 포맷팅)
                 # supabase_db.py의 update_current_status 내부에서 datetime.now()를 사용하므로
                 # 해당 코드도 UTC를 가져오게 되어 있습니다. 일관성을 위해 
                 # database 모듈을 거치는 시각 데이터도 수동 제어가 되거나 
                 # supabase_db.py 내부도 KST 기준 시간대를 타도록 맞춰야 합니다.
-                database.update_current_status(display_symbol, latest_price, latest_rsi)
+                database.update_current_status(display_symbol, latest_price, latest_rsi, rainbow_band, rainbow_color)
                 print(f"[{display_symbol}] Live Price: ${latest_price:,.2f}, Live RSI(20): {latest_rsi:.2f}", flush=True)
                 
                 # 2. 신호 판별 (마감 완성 캔들)

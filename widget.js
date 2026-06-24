@@ -220,7 +220,15 @@ function buildCoinCard(stack, coinData, name) {
   priceTxt.textColor = new Color("#e2eafc")
   priceTxt.font = Font.mediumSystemFont(12)
   
-  stack.addSpacer(4)
+  stack.addSpacer(2)
+  
+  // 레인보우 차트 밴드가 존재하면 표시 (BTC 전용)
+  if (coinData.rainbow_band && coinData.rainbow_color) {
+    let rainbowTxt = stack.addText(`🌈 ${coinData.rainbow_band}`)
+    rainbowTxt.textColor = new Color(coinData.rainbow_color)
+    rainbowTxt.font = Font.boldSystemFont(9)
+    stack.addSpacer(2)
+  }
   
   // RSI(20) 값에 따른 색상 구분
   let rsi = coinData.rsi

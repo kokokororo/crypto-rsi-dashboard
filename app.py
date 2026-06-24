@@ -136,6 +136,16 @@ def main():
                 
             st.metric(label="현재 시세", value=f"${price_val:,.2f}")
             st.metric(label="현재 RSI(20)", value=f"{rsi_val:.2f}", delta=rsi_delta)
+            
+            # 레인보우 차트 정보가 있는 경우 뱃지 표시
+            rainbow_band = btc_info.get('rainbow_band')
+            rainbow_color = btc_info.get('rainbow_color')
+            if rainbow_band and rainbow_color:
+                st.markdown(
+                    f"🌈 **Rainbow Chart**: <span style='background-color: {rainbow_color}; color: #000000; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 0.9em;'>{rainbow_band}</span>",
+                    unsafe_allow_html=True
+                )
+                
             st.caption(f"마지막 업데이트: {btc_info['last_updated']}")
         else:
             st.info("데이터를 수집하고 있습니다. 잠시만 기다려 주세요...")
